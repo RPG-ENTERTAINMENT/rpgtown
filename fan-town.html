@@ -45,12 +45,11 @@
   .plane.p2{ font-size:16px; animation-duration:47s; animation-delay:-20s; opacity:.8; }
   @keyframes fly{ 0%{ left:-60px; top:30%; } 100%{ left:112%; top:8%; } }
 
-  /* app is a 9:16 frame that fills the screen */
+  /* app fills the whole screen (bar sits at the very bottom) */
   #app{
-    position:relative; z-index:1; height:100dvh; aspect-ratio:9/16; max-width:100vw;
+    position:relative; z-index:1; width:100vw; height:100dvh; max-width:640px; margin:0 auto;
     overflow:hidden; box-shadow:0 0 40px #0006;
   }
-  @media (min-aspect-ratio:9/16){ #app{ height:100dvh; } }
   canvas#map{
     position:absolute; left:0; right:0; top:calc(104px + env(safe-area-inset-top,0px)); bottom:calc(54px + env(safe-area-inset-bottom,0px));
     width:100%; height:calc(100% - 104px - 54px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
