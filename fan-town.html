@@ -92,6 +92,16 @@
   .tag .task{ font-size:8px; line-height:1.25; margin-top:1px; padding:1px 5px; border-radius:4px;
     background:#fff7e6f0; color:#6a4a1a; border:1px solid #20182e40; white-space:normal;
     max-width:96px; word-break:break-word; display:none; }
+  .tag .task.tweeted{ animation:tweetPop 2.4s ease-out; border-color:#ffd23f;
+    box-shadow:0 0 0 2px #ffd23f, 0 0 10px 3px #ffe36acc; background:#fffbe8; }
+  @keyframes tweetPop{
+    0%{ transform:scale(.4) translateY(4px); opacity:0; }
+    18%{ transform:scale(1.25) translateY(0); opacity:1; }
+    32%{ transform:scale(.95); }
+    46%{ transform:scale(1.08); }
+    60%{ transform:scale(1); }
+    100%{ box-shadow:0 0 0 0 #ffd23f00; border-color:#20182e40; background:#fff7e6f0; }
+  }
   .tag .arrow{ font-size:13px; color:#ffd23f; line-height:1; margin-bottom:1px; display:none;
     text-shadow:0 1px 0 #20182e, 0 0 3px #e0a020; animation:bob .7s ease-in-out infinite; }
   .tag.sel .arrow{ display:block; }
@@ -1264,8 +1274,19 @@ function positionTags(){
   const r=cv.getBoundingClientRect(), ar=document.getElementById('app').getBoundingClientRect();
   const sx=r.width/VW, sy=r.height/VH, ox=r.left-ar.left, oy=r.top-ar.top;
   const tx=wx=>ox+((wx-cam.x)*cam.z)*sx, ty=wy=>oy+((wy-cam.y)*cam.z)*sy;
+  const nowMs=Date.now();
   for(const c of employees){ if(!c.tagEl)continue;
     c.tagEl.style.transform=`translate(-50%,-100%) translate(${tx(c.x).toFixed(1)}px,${ty(c.y-30).toFixed(1)}px)`;
+    const tk=c.tagEl.querySelector('.task');
+    if(tk){
+      const fresh=c.tweetAt && (nowMs-c.tweetAt<2400);
+      if(fresh && c._tweetShown!==c.tweetAt){
+        tk.classList.remove('tweeted'); void tk.offsetWidth; tk.classList.add('tweeted');
+        c._tweetShown=c.tweetAt;
+      } else if(!fresh && tk.classList.contains('tweeted')){
+        tk.classList.remove('tweeted');
+      }
+    }
   }
   for(const L of worldLabels){ L.el.style.transform=`translate(-50%,-50%) translate(${tx(L.x).toFixed(1)}px,${ty(L.y).toFixed(1)}px)`; }
   for(const L of roomLabels){ L.el.style.transform=`translate(-50%,-50%) translate(${tx(L.x).toFixed(1)}px,${ty(L.y).toFixed(1)}px)`; }
@@ -1344,6 +1365,7 @@ document.getElementById('htGo').onclick=()=>{
   const c=mine[0]||(adminOn?selected:null);
   if(!c){ toast('会員登録が必要です（会員メニュー）'); return; }
   c.task=[...(inp.value||'').trim()].slice(0,15).join('');
+  if(c.task) c.tweetAt=Date.now();
   refreshTag(c);
   if(selected===c) document.getElementById('pTask').textContent=c.task?('一言: '+c.task):'';
   saveEmployees(); fbTouch(c); sfx('save');
@@ -1618,7 +1640,7 @@ function uid(){ return 'c'+Date.now().toString(36)+Math.random().toString(36).sl
 function addEmployee(d){
   const z=PLACES.outside;
   const c={ id:d.id||uid(), name:d.name, role:d.role||'', status:d.status||'off', task:d.task||'', gender:d.gender||'male',
-    pw:d.pw||'', kind:d.kind||'', face:Array.isArray(d.face)?d.face:null, cheki:d.cheki||0, loginId:d.loginId||'', items:Array.isArray(d.items)?d.items:[], stats:(d.stats&&typeof d.stats==='object')?d.stats:null, gear:Array.isArray(d.gear)?d.gear:[], equip:(d.equip&&typeof d.equip==='object')?d.equip:{},
+    pw:d.pw||'', kind:d.kind||'', face:Array.isArray(d.face)?d.face:null, cheki:d.cheki||0, loginId:d.loginId||'', items:Array.isArray(d.items)?d.items:[], stats:(d.stats&&typeof d.stats==='object')?d.stats:null, gear:Array.isArray(d.gear)?d.gear:[], equip:(d.equip&&typeof d.equip==='object')?d.equip:{}, tweetAt:d.tweetAt||0,
     colors:d.colors||{hair:rnd(HAIR),skin:rnd(SKIN),shirt:rnd(SHIRT),pants:rnd(PANTS)},
     x:d.x??(z.x1+Math.random()*(z.x2-z.x1)), y:d.y??(z.y1+Math.random()*(z.y2-z.y1)),
     tx:null,ty:null,facing:'down',moving:false,animoff:Math.random()*10,
@@ -3586,7 +3608,7 @@ const fbDirty=new Set(), fbDel=new Set();
 try{ const v=localStorage.getItem(K_FB); if(v) fbCfg=JSON.parse(v); }catch(e){}
 try{ const v=localStorage.getItem(K_GH); if(v) ghCfg=JSON.parse(v); }catch(e){}
 const ser=c=>({id:c.id,name:c.name,role:c.role||'',status:c.status,task:c.task||'',gender:c.gender||'male',
-  pw:c.pw||'',kind:c.kind||'',face:c.face||null,cheki:c.cheki||0,loginId:c.loginId||'',items:c.items||[],stats:c.stats||null,gear:c.gear||[],equip:c.equip||null,
+  pw:c.pw||'',kind:c.kind||'',face:c.face||null,cheki:c.cheki||0,loginId:c.loginId||'',items:c.items||[],stats:c.stats||null,gear:c.gear||[],equip:c.equip||null,tweetAt:c.tweetAt||0,
   colors:c.colors,x:Math.round(c.x),y:Math.round(c.y),
   tx:c.tx!=null?Math.round(c.tx):null,ty:c.ty!=null?Math.round(c.ty):null,
   todos:Array.isArray(c.todos)?c.todos:[]});
@@ -3820,7 +3842,7 @@ function applyRemote(o){
     if(!c){ addEmployee({...s,silent:true}); }
     else{
       c.name=s.name; c.role=s.role||''; c.status=s.status; c.task=s.task||''; c.gender=s.gender||'male'; if(s.colors)c.colors=s.colors;
-      c.pw=s.pw||''; c.kind=s.kind||''; c.face=Array.isArray(s.face)?s.face:null; c.cheki=s.cheki||0; c.loginId=s.loginId||''; c.items=Array.isArray(s.items)?s.items:(c.items||[]); if(s.stats&&typeof s.stats==='object') c.stats=s.stats; if(Array.isArray(s.gear)) c.gear=s.gear; if(s.equip&&typeof s.equip==='object') c.equip=s.equip;
+      c.pw=s.pw||''; c.kind=s.kind||''; c.face=Array.isArray(s.face)?s.face:null; c.cheki=s.cheki||0; c.loginId=s.loginId||''; c.items=Array.isArray(s.items)?s.items:(c.items||[]); if(s.stats&&typeof s.stats==='object') c.stats=s.stats; if(Array.isArray(s.gear)) c.gear=s.gear; if(s.equip&&typeof s.equip==='object') c.equip=s.equip; if(s.tweetAt) c.tweetAt=s.tweetAt;
       if(Array.isArray(s.todos) && c!==todoChar){ c.todos=s.todos; }
       if(c!==selected){
         if(s.tx!=null){ c.tx=s.tx; c.ty=s.ty; }                                   // 同じ目的地へ歩く
