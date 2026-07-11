@@ -119,6 +119,9 @@
     40%{ transform:translateY(-4px) scale(1.2) rotate(20deg); opacity:1; }
     100%{ transform:translateY(-14px) scale(.4) rotate(40deg); opacity:0; }
   }
+  .tag .hp{ width:34px; height:5px; margin:0 auto 2px; background:#3a1f1f; border:1px solid #20182e;
+    border-radius:3px; overflow:hidden; display:none; }
+  .tag .hp i{ display:block; height:100%; width:100%; background:#57e06a; }
   .tag .arrow{ font-size:13px; color:#ffd23f; line-height:1; margin-bottom:1px; display:none;
     text-shadow:0 1px 0 #20182e, 0 0 3px #e0a020; animation:bob .7s ease-in-out infinite; }
   .tag.sel .arrow{ display:block; }
@@ -527,6 +530,7 @@ function sfx(n){
     case 'fanfare':[523,659,784,1046,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,i<4?.09:.16,'square',.11),i*90)); break;
     case 'notice': beep(880,.09,'square',.1); setTimeout(()=>beep(880,.09,'square',.1),140); setTimeout(()=>beep(1175,.14,'square',.1),300); break;
     case 'sparkle':[1319,1568,2093,1760].forEach((f,i)=>setTimeout(()=>beep(f,.09,'triangle',.09),i*55)); break;
+    case 'hit':    beep(160,.06,'sawtooth',.16); setTimeout(()=>beep(90,.09,'square',.14),40); setTimeout(()=>beep(1200,.05,'square',.08),20); break;
   }
 }
 /* ---------- BGM（レトロ8bitループ・ON/OFF可） ---------- */
@@ -971,8 +975,31 @@ function idolCostume(p,c,mode,beat){
            else        { p(6,13,2,2,'#ffffff'); p(10,13,2,2,'#ffffff'); } }
   }
 }
+function drawFainted(c,t){
+  const X=Math.round(c.x)-8, Y=Math.round(c.y)-10, OL='#20182e';
+  const {hair,skin,shirt,pants}=c.colors;
+  const p=(dx,dy,w,h,col)=>{ ctx.fillStyle=col; ctx.fillRect(X+dx,Y+dy,w,h); };
+  ctx.fillStyle='#00000030'; ctx.beginPath(); ctx.ellipse(c.x,c.y+1,8,2.4,0,0,7); ctx.fill();
+  // 横たわる（体→頭を横に）
+  p(3,2,9,4,shirt); p(3,2,9,1,'#ffffff66');
+  p(11,1,5,5,skin); p(12,1,4,1,hair); p(11,2,1,3,hair);   // 頭（右向き）
+  p(13,3,1,1,OL); p(14,3,1,1,OL);                          // ✕目っぽく
+  p(4,6,3,2,pants); p(8,6,3,2,pants);                      // 脚
+  // ぐるぐる💫
+  const s=Math.sin(t*4);
+  ctx.fillStyle='#ffd23f'; ctx.font='9px "DotGothic16",monospace'; ctx.textAlign='center';
+  ctx.fillText('💫', c.x+6+s*2, c.y-12); ctx.textAlign='left';
+  // 残り秒（キャラの下・全員に見える）
+  const sec=Math.ceil((c.downUntil-Date.now())/1000);
+  ctx.textAlign='center';
+  ctx.font='9px "DotGothic16",monospace';
+  ctx.fillStyle='#20182e'; ctx.fillText('😵'+sec+'秒', c.x+0.6, c.y+15+0.6);
+  ctx.fillStyle='#ff5a5a'; ctx.fillText('😵'+sec+'秒', c.x, c.y+15);
+  ctx.textAlign='left';
+}
 function drawChar(c){
   const t=performance.now()/1000;
+  if(c.downUntil && c.downUntil>Date.now()){ drawFainted(c,t); return; }   // 😵 ダウン中
   // 止まっている時は状況に応じたポーズ
   if(!c.moving && (c.status==='sleep'||c.status==='off')){ drawSleeping(c,t); return; }
   if(!c.moving && c.status==='eat'){ drawEating(c,t); return; }
@@ -1159,6 +1186,9 @@ const SPEED=28;
 const CHAR_SCALE=1.5;                                   // キャラの表示倍率
 function update(dt){
   for(const c of employees){
+    if(c.downUntil && c.downUntil>Date.now()){ c.moving=false; c._atk=false; continue; }   // 😵 気絶中
+    if(c.downUntil && c.downUntil<=Date.now() && c.downUntil!==0){ c.downUntil=0; c.battleHp=charMaxHp(c); }  // 復活で全回復
+    if(!c._atk && c.battleHp!=null && c.battleHp<charMaxHp(c)){ c.battleHp=Math.min(charMaxHp(c), c.battleHp+dt*4); }  // 少しずつ回復
     clampFanZones(c);                                    // ファンはステージ・アイドルの部屋に入れない
     let dx=0,dy=0;
     if(c===selected && held.size && canControl(c)){
@@ -1179,6 +1209,8 @@ function update(dt){
       if(Math.abs(dx)>Math.abs(dy)) c.facing=dx<0?'left':'right'; else c.facing=dy<0?'up':'down';
     } else c.moving=false;
   }
+  updatePolice(dt);                                    // 👮 ランダム徘徊
+  updatePoliceBattle(dt);                               // 👮 フィールド上の共有バトル
 }
 function moveTo(c,place){ const z=PLACES[place];
   c.tx=z.x1+Math.random()*(z.x2-z.x1); c.ty=z.y1+Math.random()*(z.y2-z.y1); }
@@ -1233,7 +1265,174 @@ function drawBird(b,t){ const x=Math.round(b.x),y=Math.round(b.y);
   else { ctx.fillRect(x-2,y+1,2,1); ctx.fillRect(x+2,y+1,2,1); }
 }
 
-/* ---------- render loop ---------- */
+/* ---------- 👮 敵：警察官（フィールド共有バトル・みんなでタップ参加） ---------- */
+const POLICE_HP=180;
+let dmgFx=[];                 // フィールド上のダメージ表示
+let policeFlash=0;            // 被弾フラッシュ
+function policeSay(){ return 'ライブやったらだめだよ！！'; }
+function spawnPolice(){
+  if(game.police && game.police.hp>0) return;
+  const vw=VW/cam.z, cx=cam.x+vw/2;
+  let x,y,tries=0;
+  do{ x=clamp(cx+(Math.random()*150-75), BND.x1+24, BND.x2-24);
+      y=clamp(300+Math.random()*150, 150, 470); tries++;
+  } while(fanZoneHit(x,y) && tries<12);
+  game.police={id:uid(), x, y, hp:POLICE_HP, maxhp:POLICE_HP, born:Date.now()};
+  saveGame();
+  ensureAudio&&ensureAudio(); sfx('notice');
+  announce('👮 警察官があらわれた！「ライブやったらだめだよ！！」みんなでタップして やっつけろ！');
+}
+setTimeout(()=>{ if(employees.length) spawnPolice(); }, 12000);
+setInterval(()=>{ if((!game.police||game.police.hp<=0) && employees.length && Math.random()<0.7) spawnPolice(); }, 45000);
+function addDmgFx(x,y,val,col){ dmgFx.push({x,y,val:String(val),col:col||'#ffd23f',t:0}); if(dmgFx.length>30) dmgFx.shift(); }
+function drawDmgFx(dt){
+  for(const f of dmgFx){ f.t+=dt; }
+  dmgFx=dmgFx.filter(f=>f.t<1);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const f of dmgFx){
+    const a=1-f.t; ctx.globalAlpha=a;
+    ctx.font='bold 12px "DotGothic16",monospace';
+    ctx.fillStyle='#20182e'; ctx.fillText(f.val, f.x+0.6, f.y-f.t*16+0.6);
+    ctx.fillStyle=f.col;    ctx.fillText(f.val, f.x, f.y-f.t*16);
+    ctx.globalAlpha=1;
+  }
+  ctx.textAlign='left';
+}
+function drawPolice(t){
+  drawDmgFx(1/60);
+  const P=game.police; if(!P || P.hp<=0) return;
+  if(policeFlash>0) policeFlash-=1/60;
+  const bob=Math.round(Math.sin(t*2+(P.id?P.id.length:0)));
+  const X=Math.round(P.x)-8, Y=Math.round(P.y)-16+bob, OL='#20182e';
+  ctx.save();
+  ctx.translate(P.x, P.y+10); ctx.scale(CHAR_SCALE,CHAR_SCALE); ctx.translate(-P.x,-(P.y+10));
+  const p=(dx,dy,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(X+dx,Y+dy,w,h); };
+  ctx.fillStyle='#00000030'; ctx.beginPath(); ctx.ellipse(P.x,P.y-1,6,2.3,0,0,7); ctx.fill();
+  const hit=policeFlash>0;
+  const navy=hit?'#c0392b':'#2b3a67', navyD=hit?'#8a1f1f':'#1d2748', skin='#ffd9b3';
+  p(3,0,10,3,navy); p(3,0,10,1,'#3a4d85'); p(4,3,8,1,'#0f1730'); p(7,1,2,1,'#ffd23f');
+  p(4,4,8,4,skin); p(4,4,8,1,'#e9b98a');
+  p(5,5,1,1,OL); p(9,5,1,1,OL); p(6,7,4,1,'#c96a5a');
+  p(4,8,8,5,navy); p(7,8,2,5,'#e8ecf7'); p(4,8,1,5,navyD); p(11,8,1,5,navyD);
+  p(3,9,1,3,skin); p(12,9,1,3,skin); p(6,8,1,1,'#ffd23f'); p(9,8,1,1,'#ffd23f');
+  p(5,13,2,2,navyD); p(9,13,2,2,navyD);
+  ctx.restore();
+  // 名前「👮 警察官」（名札風・上）
+  const ny=P.y-42;
+  ctx.font='7px "DotGothic16",monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
+  const nm='👮 警察官', nw=Math.max(40, ctx.measureText(nm).width+10);
+  ctx.fillStyle='#20182e'; roundRectPath(P.x-nw/2,ny-7,nw,13,4); ctx.fill();
+  ctx.fillStyle='#ff5a5a'; ctx.fillText(nm, P.x, ny);
+  // 名前ラベル「👮 警察官」（HPバーの上）
+  ctx.font='7px "DotGothic16",monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
+  const pnm='👮 警察官', pnw=ctx.measureText(pnm).width+10;
+  ctx.fillStyle='#20182e'; roundRectPath(P.x-pnw/2,by-13,pnw,10,3); ctx.fill();
+  ctx.fillStyle='#ffffff'; ctx.fillText(pnm, P.x, by-8);
+  // HPバー（全員に見える）
+  const bw=30, bx=P.x-bw/2, by2=by, pct=Math.max(0,P.hp/P.maxhp);
+  ctx.fillStyle='#20182e'; ctx.fillRect(bx-1,by2-1,bw+2,5);
+  ctx.fillStyle='#5c2020'; ctx.fillRect(bx,by2,bw,3);
+  ctx.fillStyle='#e0402f'; ctx.fillRect(bx,by2,bw*pct,3);
+  // 吹き出し（黒縁で見やすく・上）
+  const sy=P.y-58, say=policeSay();
+  ctx.font='7px "DotGothic16",monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
+  const w=Math.max(56, ctx.measureText(say).width+10);
+  ctx.fillStyle='#20182e'; roundRectPath(P.x-w/2-1,sy-9,w+2,16,4); ctx.fill();
+  ctx.fillStyle='#fff2f2'; roundRectPath(P.x-w/2,sy-8,w,14,4); ctx.fill();
+  ctx.fillStyle='#20182e'; ctx.beginPath(); ctx.moveTo(P.x-3,sy+6); ctx.lineTo(P.x+3,sy+6); ctx.lineTo(P.x,sy+11); ctx.fill();
+  ctx.lineJoin='round'; ctx.lineWidth=3; ctx.strokeStyle='#20182e'; ctx.strokeText(say, P.x, sy-1);
+  ctx.fillStyle='#ff4a4a'; ctx.fillText(say, P.x, sy-1);
+  // 「⚔タップで戦う」ヒント（下ではなく上・黒縁で見やすく）
+  ctx.font='7px "DotGothic16",monospace';
+  ctx.lineJoin='round'; ctx.lineWidth=3; ctx.strokeStyle='#20182e'; ctx.strokeText('⚔ タップでみんなで戦う！', P.x, sy-16);
+  ctx.fillStyle='#ffd23f'; ctx.fillText('⚔ タップでみんなで戦う！', P.x, sy-16);
+  ctx.textAlign='left';
+}
+function roundRectPath(x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+/* キャラの戦闘力（装備・レベルで強くなる） */
+function charAtk(c){
+  const eb=equipBonus(c);
+  const lv=(c.kind==='idol'?idolLevel(c):fanLv(c));
+  return 10 + Math.floor((eb.love+eb.loved+eb.ikemen+eb.hp)/5) + Math.floor(lv/2);   // 平均~13→3発で撃退
+}
+function charMaxHp(c){
+  const eb=equipBonus(c);
+  const lv=(c.kind==='idol'?idolLevel(c):fanLv(c));
+  return 26 + eb.hp*2 + lv*2;      // 装備で打たれ強く
+}
+function startPoliceApproach(){
+  const P=game.police; if(!P||P.hp<=0) return;
+  const c=(selected&&canControl(selected))?selected:myChars()[0];
+  if(!c){ toast('ログインしたキャラで戦えます'); return; }
+  if(c.downUntil && c.downUntil>Date.now()){ toast('😵 気絶中… あと'+Math.ceil((c.downUntil-Date.now())/1000)+'秒'); return; }
+  selected=c; c._atk=true; c._atkCd=0.2; c.battleHp=charMaxHp(c);
+  c.tx=P.x+(c.x<P.x?-14:14); c.ty=P.y; c.dash=true;
+  employees.forEach(refreshTag); toast('⚔️ 警察官にむかう！ 近づくと自動で攻撃！');
+}
+function updatePolice(dt){
+  const P=game.police; if(!P || P.hp<=0) return;
+  if(P.tx==null || Math.hypot(P.x-(P.tx||P.x), P.y-(P.ty||P.y))<6 || fanZoneHit(P.tx,P.ty)){   // 目標到達／立入禁止なら選び直し
+    let nx,ny,tries=0;
+    do{ nx=clamp(P.x+(Math.random()*170-85), BND.x1+24, BND.x2-24);
+        ny=clamp(P.y+(Math.random()*130-65), 150, 470); tries++;
+    } while(fanZoneHit(nx,ny) && tries<12);
+    P.tx=nx; P.ty=ny;
+  }
+  const dx=P.tx-P.x, dy=P.ty-P.y, d=Math.hypot(dx,dy), sp=20*dt;      // ランダム徘徊
+  if(d>0.5){ P.x+=dx/d*Math.min(sp,d); P.y+=dy/d*Math.min(sp,d); }
+  const z=fanZoneHit(P.x,P.y); if(z){ P.y=z.push; if(P.ty<z.push) P.ty=z.push; }   // アイドルの部屋・ステージには入れない
+  P._syncCd=(P._syncCd||0)-dt;
+  if(P._syncCd<=0){ P._syncCd=1.5; saveGame(); }                      // 位置をたまに同期
+}
+function updatePoliceBattle(dt){
+  const P=game.police;
+  if(!P || P.hp<=0){ for(const c of employees) c._atk=false; return; }
+  for(const c of employees){
+    if(!c._atk || !canControl(c)) continue;
+    if(c.downUntil && c.downUntil>Date.now()){ c._atk=false; continue; }
+    const d=Math.hypot(c.x-P.x,c.y-P.y);
+    if(d>=26){                                          // 逃げる警察を追いかける
+      c.tx=P.x+(c.x<P.x?-14:14); c.ty=P.y; c.dash=true;
+    } else {
+      c.tx=null; c.dash=false;
+      c._atkCd=(c._atkCd||0)-dt;
+      if(c._atkCd<=0){
+        c._atkCd=0.85;
+        const dmg=Math.max(1, charAtk(c)-2+Math.floor(Math.random()*5));
+        P.hp=Math.max(0,P.hp-dmg);
+        policeFlash=0.14;
+        addDmgFx(P.x+(Math.random()*10-5), P.y-14, dmg);
+        sfx('hit'); saveGame();
+        if(P.hp<=0){ defeatPolice(c); return; }
+        const edmg=6+Math.floor(Math.random()*6);
+        c.battleHp=(c.battleHp!=null?c.battleHp:charMaxHp(c))-edmg;
+        addDmgFx(c.x+(Math.random()*8-4), c.y-16, edmg, '#ff5a5a');
+        if(c.battleHp<=0){ faintChar(c); }
+      }
+    }
+  }
+}
+function faintChar(c){
+  c._atk=false; c.dash=false; c.tx=null; c.battleHp=0;
+  c.downUntil=Date.now()+60000;                    // 1分ダウン
+  sfx('delete'); addDmgFx(c.x, c.y-18, '😵ダウン！', '#ff5a5a');
+  saveEmployees(); fbTouch(c);
+  toast('😵 '+c.name+' はダウン… 1分休み');
+}
+function defeatPolice(c){
+  const P=game.police; if(!P) return;
+  const reward=20+Math.floor(Math.random()*20);
+  coins+=reward; saveCoins(); updateCoinUI&&updateCoinUI();
+  sfx('fanfare');
+  addDmgFx(P.x, P.y-16, '★やったー！', '#57c46a');
+  announce(((c&&c.name)||'ファン')+' たちが警察官を撃退！ ライブ続行だ！🎉 (+🪙'+reward+')');
+  game.police=null; saveGame();
+  for(const e of employees){ e._atk=false; e.dash=false; }
+}
+
+/* ---------- render loop ---------- *//* ---------- render loop ---------- */
 let last=performance.now();
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000); last=now;
@@ -1277,6 +1476,7 @@ function loop(now){
     const off=c.status==='off'; if(off) ctx.globalAlpha=0.4;   // 離脱中は半透明
     if(focusedId===c.id) drawFocusGlow(c,t);                   // フォーカス（白光）
     if(selfRing && mineSet.has(c.id)) drawSelfRing(c,t);       // 自分の赤枠
+
     ctx.save();
     ctx.translate(c.x, c.y+10);                                // 足元を基準に1.5倍
     ctx.scale(CHAR_SCALE, CHAR_SCALE);
@@ -1285,6 +1485,7 @@ function loop(now){
     ctx.restore();
     ctx.globalAlpha=1;
   });
+  drawPolice(t);                                         // 👮 敵：警察官
   deco.birds.forEach(b=>drawBird(b,t));                  // 鳥（空・最前面）
   ctx.restore();
   positionTags();
@@ -1297,6 +1498,15 @@ function positionTags(){
   const nowMs=Date.now();
   for(const c of employees){ if(!c.tagEl)continue;
     c.tagEl.style.transform=`translate(-50%,-100%) translate(${tx(c.x).toFixed(1)}px,${ty(c.y-30).toFixed(1)}px)`;
+    const hpEl=c.tagEl.querySelector('.hp');
+    if(hpEl){
+      if(c._atk){                                       // 戦う時だけ名前の上にHP表示
+        const mh=charMaxHp(c), hp=(c.battleHp!=null?c.battleHp:mh), pct=Math.max(0,Math.min(1,hp/mh));
+        hpEl.style.display='block';
+        const bar=hpEl.firstElementChild; bar.style.width=(pct*100)+'%';
+        bar.style.background = pct>0.4?'#57e06a':(pct>0.2?'#ffd23f':'#ff5a5a');
+      } else hpEl.style.display='none';                 // 戦わない時は消す
+    }
     const tk=c.tagEl.querySelector('.task');
     if(tk){
       const fresh=c.tweetAt && (nowMs-c.tweetAt<2400);
@@ -1316,7 +1526,7 @@ function positionTags(){
 /* ---------- tags ---------- */
 function makeTag(c){
   const el=document.createElement('div'); el.className='tag';
-  el.innerHTML=`<div class="arrow">▼</div><div class="st"><span class="dot"></span><span class="lab"></span></div><div class="name"></div><div class="role"></div><div class="task"></div>`;
+  el.innerHTML=`<div class="arrow">▼</div><div class="st"><span class="dot"></span><span class="lab"></span></div><div class="hp"><i></i></div><div class="name"></div><div class="role"></div><div class="task"></div>`;
   el.addEventListener('click',e=>{e.stopPropagation();
     if(canControl(c)) select(c);
     else profileView(c); });
@@ -1497,6 +1707,7 @@ document.getElementById('showBtn').onclick=()=>{ ensureAudio(); sfx('click'); sh
 function handleTap(e){
   const r=cv.getBoundingClientRect();
   const wx=(e.clientX-r.left)/r.width*VW/cam.z+cam.x, wy=(e.clientY-r.top)/r.height*VH/cam.z+cam.y;
+  if(game.police && game.police.hp>0){ const dP=Math.hypot(game.police.x-wx,(game.police.y-12)-wy); if(dP<24){ startPoliceApproach(); return; } }  // 👮 警察官
   if(tryHunt(wx,wy)) return;                             // 宝探し（最優先）
   let hit=null,best=19;
   for(const c of employees){ const d=Math.hypot(c.x-wx,(c.y-12)-wy); if(d<best){best=d;hit=c;} }
@@ -1661,7 +1872,7 @@ function uid(){ return 'c'+Date.now().toString(36)+Math.random().toString(36).sl
 function addEmployee(d){
   const z=PLACES.outside;
   const c={ id:d.id||uid(), name:d.name, role:d.role||'', status:d.status||'off', task:d.task||'', gender:d.gender||'male',
-    pw:d.pw||'', kind:d.kind||'', face:Array.isArray(d.face)?d.face:null, cheki:d.cheki||0, loginId:d.loginId||'', items:Array.isArray(d.items)?d.items:[], stats:(d.stats&&typeof d.stats==='object')?d.stats:null, gear:Array.isArray(d.gear)?d.gear:[], equip:(d.equip&&typeof d.equip==='object')?d.equip:{}, tweetAt:d.tweetAt||0,
+    pw:d.pw||'', kind:d.kind||'', face:Array.isArray(d.face)?d.face:null, cheki:d.cheki||0, loginId:d.loginId||'', items:Array.isArray(d.items)?d.items:[], stats:(d.stats&&typeof d.stats==='object')?d.stats:null, gear:Array.isArray(d.gear)?d.gear:[], equip:(d.equip&&typeof d.equip==='object')?d.equip:{}, tweetAt:d.tweetAt||0, downUntil:d.downUntil||0, battleHp:(typeof d.battleHp==='number'?d.battleHp:null),
     colors:d.colors||{hair:rnd(HAIR),skin:rnd(SKIN),shirt:rnd(SHIRT),pants:rnd(PANTS)},
     x:d.x??(z.x1+Math.random()*(z.x2-z.x1)), y:d.y??(z.y1+Math.random()*(z.y2-z.y1)),
     tx:null,ty:null,facing:'down',moving:false,animoff:Math.random()*10,
@@ -3628,7 +3839,7 @@ const fbDirty=new Set(), fbDel=new Set();
 try{ const v=localStorage.getItem(K_FB); if(v) fbCfg=JSON.parse(v); }catch(e){}
 try{ const v=localStorage.getItem(K_GH); if(v) ghCfg=JSON.parse(v); }catch(e){}
 const ser=c=>({id:c.id,name:c.name,role:c.role||'',status:c.status,task:c.task||'',gender:c.gender||'male',
-  pw:c.pw||'',kind:c.kind||'',face:c.face||null,cheki:c.cheki||0,loginId:c.loginId||'',items:c.items||[],stats:c.stats||null,gear:c.gear||[],equip:c.equip||null,tweetAt:c.tweetAt||0,
+  pw:c.pw||'',kind:c.kind||'',face:c.face||null,cheki:c.cheki||0,loginId:c.loginId||'',items:c.items||[],stats:c.stats||null,gear:c.gear||[],equip:c.equip||null,tweetAt:c.tweetAt||0,downUntil:c.downUntil||0,battleHp:(c.battleHp!=null?c.battleHp:null),
   colors:c.colors,x:Math.round(c.x),y:Math.round(c.y),
   tx:c.tx!=null?Math.round(c.tx):null,ty:c.ty!=null?Math.round(c.ty):null,
   todos:Array.isArray(c.todos)?c.todos:[]});
@@ -3862,7 +4073,7 @@ function applyRemote(o){
     if(!c){ addEmployee({...s,silent:true}); }
     else{
       c.name=s.name; c.role=s.role||''; c.status=s.status; c.task=s.task||''; c.gender=s.gender||'male'; if(s.colors)c.colors=s.colors;
-      c.pw=s.pw||''; c.kind=s.kind||''; c.face=Array.isArray(s.face)?s.face:null; c.cheki=s.cheki||0; c.loginId=s.loginId||''; c.items=Array.isArray(s.items)?s.items:(c.items||[]); if(s.stats&&typeof s.stats==='object') c.stats=s.stats; if(Array.isArray(s.gear)) c.gear=s.gear; if(s.equip&&typeof s.equip==='object') c.equip=s.equip; if(s.tweetAt) c.tweetAt=s.tweetAt;
+      c.pw=s.pw||''; c.kind=s.kind||''; c.face=Array.isArray(s.face)?s.face:null; c.cheki=s.cheki||0; c.loginId=s.loginId||''; c.items=Array.isArray(s.items)?s.items:(c.items||[]); if(s.stats&&typeof s.stats==='object') c.stats=s.stats; if(Array.isArray(s.gear)) c.gear=s.gear; if(s.equip&&typeof s.equip==='object') c.equip=s.equip; if(s.tweetAt) c.tweetAt=s.tweetAt; if(s.downUntil!=null) c.downUntil=s.downUntil; if(typeof s.battleHp==='number') c.battleHp=s.battleHp;
       if(Array.isArray(s.todos) && c!==todoChar){ c.todos=s.todos; }
       if(c!==selected){
         if(s.tx!=null){ c.tx=s.tx; c.ty=s.ty; }                                   // 同じ目的地へ歩く
