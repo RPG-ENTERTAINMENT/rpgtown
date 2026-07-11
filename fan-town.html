@@ -48,15 +48,17 @@
   /* app fills the whole screen (bar sits at the very bottom) */
   #app{
     position:relative; z-index:1; width:100vw; height:100dvh; max-width:640px; margin:0 auto;
-    overflow:hidden; box-shadow:0 0 40px #0006;
+    overflow:hidden; box-shadow:0 0 40px #0006; background:#20182e;
   }
   canvas#map{
-    position:absolute; left:0; right:0; top:calc(104px + env(safe-area-inset-top,0px)); bottom:calc(56px + env(safe-area-inset-bottom,0px));
-    width:100%; height:calc(100% - 104px - 56px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+    position:absolute; left:50%; transform:translateX(-50%);
+    top:calc(env(safe-area-inset-top,0px) + 120px);
+    width:auto; height:calc(100% - env(safe-area-inset-top,0px) - 120px);
+    aspect-ratio:9/16; max-width:100%;
     image-rendering:pixelated; image-rendering:crisp-edges; display:block;
     touch-action:none;
   }
-  #topBand{ position:absolute; top:0; left:0; right:0; height:calc(104px + env(safe-area-inset-top,0px)); z-index:19;
+  #topBand{ position:absolute; top:0; left:0; right:0; height:calc(env(safe-area-inset-top,0px) + 120px); z-index:19;
     background:linear-gradient(#3a2c56,#241b3a); border-bottom:2px solid #ffd23f;
     box-shadow:0 2px 0 #0006; }
   #tags{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:14; }
@@ -124,10 +126,14 @@
   .tag.sel .st{ box-shadow:0 0 0 2px #ffd23f, 0 2px 0 #0004; }
 
   /* ---------- title banner ---------- */
-  #titlebar{ position:absolute; top:0; left:0; right:0; z-index:21; text-align:center;
+  #titlebar{ position:absolute; top:0; left:0; right:0; z-index:21;
+    display:flex; align-items:center; gap:6px;
     font-family:'DotGothic16'; font-size:11px; letter-spacing:1px; color:#fff3cf;
-    padding:calc(5px + env(safe-area-inset-top,0px)) 6px 5px; background:linear-gradient(#3a2c56,#241b3a);
+    padding:calc(6px + env(safe-area-inset-top,0px)) 8px 6px; background:linear-gradient(#3a2c56,#241b3a);
     border-bottom:2px solid #ffd23f; box-shadow:0 2px 0 #0006; text-shadow:1px 1px 0 #000;
+  }
+  #titlebar .ttl{ flex:1; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  
     pointer-events:none; }
 
   /* ---------- top HUD ---------- */
@@ -151,12 +157,12 @@
   .coin b{ font-family:'Press Start 2P'; font-size:10px; }
 
   /* ---------- selected panel ---------- */
-  #panel{ position:fixed; left:6px; right:6px; bottom:calc(62px + env(safe-area-inset-bottom,0px)); z-index:24; display:none; max-width:628px; margin:0 auto;
+  #panel{ position:fixed; left:6px; right:6px; bottom:calc(8px + env(safe-area-inset-bottom,0px)); z-index:24; display:none; max-width:628px; margin:0 auto;
     background:linear-gradient(#fdfaf1,#efe6cf); border:2px solid #b98a2a; border-radius:12px;
     box-shadow:0 4px 0 #7a5c1e, 0 6px 12px #0006; padding:5px 8px; color:#3a2c14; }
   #panel.show{ display:block; }
   #panel.hidden{ transform:translateX(-120%)!important; opacity:0; pointer-events:none; }
-  #showPanelTab{ position:fixed; left:0; bottom:calc(120px + env(safe-area-inset-bottom,0px)); z-index:25; display:none;
+  #showPanelTab{ position:fixed; left:0; bottom:calc(60px + env(safe-area-inset-bottom,0px)); z-index:25; display:none;
     font-family:'DotGothic16'; font-size:15px; color:#fff; cursor:pointer; padding:10px 8px 10px 5px;
     background:linear-gradient(#b98a2a,#8a6418); border:2px solid #5c4310; border-left:none;
     border-radius:0 10px 10px 0; box-shadow:2px 2px 0 #0006; }
@@ -186,15 +192,15 @@
   .mini.del{ margin-left:auto; border-color:#d9534f; color:#c0392b; box-shadow:0 2px 0 #d9534f; }
 
   /* ---------- bottom bar ---------- */
-  #bar{ position:fixed; left:0; right:0; bottom:0; z-index:22;
-    height:calc(56px + env(safe-area-inset-bottom,0px)); box-sizing:border-box;
-    display:flex; align-items:flex-start; justify-content:center; gap:5px;
-    padding:7px 7px calc(7px + env(safe-area-inset-bottom,0px));
-    background:linear-gradient(#2f7f9e,#1c4d64); border-top:2px solid #16455a;
-    box-shadow:0 -3px 0 #0004; max-width:640px; margin:0 auto; }
+  #bar{ position:fixed; left:0; right:0; top:0; z-index:36;
+    height:calc(56px + env(safe-area-inset-top,0px)); box-sizing:border-box;
+    display:flex; align-items:flex-end; justify-content:center; gap:5px;
+    padding:calc(4px + env(safe-area-inset-top,0px)) 7px 6px;
+    background:linear-gradient(#2f7f9e,#1c4d64); border-bottom:2px solid #16455a;
+    box-shadow:0 3px 0 #0004; max-width:640px; margin:0 auto; }
   .bbtn{ font-family:'DotGothic16'; font-size:12px; color:#fff; cursor:pointer;
-    border:2px solid #16455a; border-radius:9px; padding:8px 10px; box-shadow:0 3px 0 #0006, inset 0 1px 0 #ffffff30;
-    display:flex; align-items:center; gap:4px; }
+    border:2px solid #16455a; border-radius:9px; height:34px; padding:0 12px; box-shadow:0 3px 0 #0006, inset 0 1px 0 #ffffff30;
+    display:flex; align-items:center; justify-content:center; gap:4px; box-sizing:border-box; }
   .bbtn:active{ transform:translateY(3px); box-shadow:0 0 0 #0006; }
   .bbtn.save{ background:linear-gradient(#4aa3d8,#2f7bb0); }
   .bbtn.add{ background:linear-gradient(#57c46a,#2f8f45); }
@@ -236,7 +242,7 @@
   .todorow .tdel{ width:26px;height:26px;flex:0 0 auto;border-radius:7px;border:2px solid #d86a6a;background:#fff;color:#d86a6a;cursor:pointer; }
 
   /* ---------- area nav & zoom ---------- */
-  #areaNav{ position:absolute; top:calc(30px + env(safe-area-inset-top,0px)); left:6px; right:6px; z-index:23;
+  #areaNav{ position:absolute; top:calc(env(safe-area-inset-top,0px) + 46px); left:6px; right:6px; z-index:23;
     display:flex; gap:4px; }
   .destbtn{ flex:1; font-family:'DotGothic16'; font-size:10px; color:#fff3cf; cursor:pointer;
     padding:6px 1px; background:linear-gradient(#3a2c56,#241b3a); border:2px solid #16455a;
@@ -250,13 +256,13 @@
     box-shadow:0 2px 0 #b98a2a; display:flex; align-items:center; justify-content:center; }
   .navbtn:active{ transform:translateY(2px); box-shadow:none; }
   .navbtn:disabled{ opacity:.35; }
-  .navbtn .ic{ width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-size:9px; color:#fff; }
-  #zoomCol{ position:absolute; right:7px; top:calc(110px + env(safe-area-inset-top,0px)); z-index:23; display:flex; flex-direction:column; gap:6px; }
-  .bbtn.tool{ padding:6px 8px; display:flex; align-items:center; justify-content:center; }
+  .navbtn .ic{ width:auto; height:auto; display:flex; align-items:center; justify-content:center;
+    font-size:15px; color:#5a3d0a; background:transparent !important; }
+  #zoomCol{ position:absolute; right:7px; top:calc(env(safe-area-inset-top,0px) + 126px); z-index:37; display:flex; flex-direction:column; gap:6px; }
+  .bbtn.tool{ width:34px; height:34px; padding:0; background:linear-gradient(#3a6a82,#274a5c); display:flex; align-items:center; justify-content:center; }
   .bbtn.tool .ic{ width:18px; height:18px; font-size:12px; display:flex; align-items:center; justify-content:center;
-    border-radius:5px; color:#fff; }
-  #showBtn{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(80px + env(safe-area-inset-bottom,0px)); z-index:30; display:none;
+    border-radius:5px; color:#fff; background:transparent !important; }
+  #showBtn{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:30; display:none;
     width:92%; max-width:380px;
     font-family:'DotGothic16'; font-size:19px; font-weight:bold; color:#fff; cursor:pointer; padding:16px 10px;
     background:linear-gradient(#ff5a7a,#d8244a); border:4px solid #8f1230; border-radius:16px;
@@ -267,12 +273,12 @@
     0%,100%{ transform:translateX(-50%) scale(1);    box-shadow:0 5px 0 #0007, 0 0 16px #ff4a6a99, inset 0 2px 0 #ffffff40; }
     50%    { transform:translateX(-50%) scale(1.06); box-shadow:0 5px 0 #0007, 0 0 34px #ff4a6aee, inset 0 2px 0 #ffffff40; }
   }
-  #notice{ position:absolute; top:calc(120px + env(safe-area-inset-top,0px)); left:10px; right:10px; z-index:35; display:none;
+  #notice{ position:absolute; top:calc(env(safe-area-inset-top,0px) + 132px); left:10px; right:10px; z-index:35; display:none;
     background:linear-gradient(#ff9f43,#e07a1a); border:3px solid #20182e; border-radius:12px;
     color:#fff; text-shadow:1px 1px 0 #0007; font-size:13px; line-height:1.6; padding:10px 12px;
     box-shadow:0 4px 0 #0006; animation:noticeIn .4s ease-out; }
   @keyframes noticeIn{ from{ transform:translateY(-16px); opacity:0; } to{ transform:none; opacity:1; } }
-  #hitobar{ position:absolute; top:calc(66px + env(safe-area-inset-top,0px)); left:6px; right:6px; z-index:23; display:flex; gap:4px; }
+  #hitobar{ position:absolute; top:calc(env(safe-area-inset-top,0px) + 82px); left:6px; right:6px; z-index:23; display:flex; gap:4px; }
   #hitobar input{ flex:1; min-width:0; font-family:'DotGothic16'; font-size:13px; color:#3a2c14;
     background:#fff; border:2px solid #b98a2a; border-radius:9px; padding:7px 10px; }
   #hitobar input:disabled{ opacity:.6; }
@@ -291,7 +297,10 @@
   @keyframes pulse{ 0%,100%{ box-shadow:0 3px 0 #0006, 0 0 0 0 #ff4a6a66; } 50%{ box-shadow:0 3px 0 #0006, 0 0 0 7px #ff4a6a00; } }
 
   /* bottom-bar clock & counts */
-  #barInfo{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; margin-left:2px; }
+  #barInfo{ position:absolute; top:calc(env(safe-area-inset-top,0px) + 128px); left:8px; z-index:34;
+    background:#20182ecc; border:1px solid #ffd23f; border-radius:9px; padding:2px 8px; }
+  #barInfo .cnt{ font-family:'DotGothic16'; font-size:12px; color:#ffe36a; }
+  #barInfo .cnt b{ color:#fff; }
   #barCounts{ display:flex; gap:6px; }
   #barCounts .cnt{ display:flex; align-items:center; gap:2px; font-size:9px; color:#dfeaf2; }
   #barCounts .cnt i{ width:7px; height:7px; border-radius:2px; }
@@ -321,7 +330,11 @@
   <!-- header band (画面外エリア：タイトル＋行き先ボタン) -->
   <div id="topBand"></div>
   <!-- title -->
-  <div id="titlebar">ファンミータウン <small style="font-size:9px;opacity:.75">by RPGエンターテイメント</small></div>
+  <div id="titlebar">
+    <button class="bbtn save" id="meBtn">📍自分</button>
+    <button class="bbtn menu" id="loginBtn">ログイン</button>
+    <span class="ttl">ファンミータウン <small style="font-size:9px;opacity:.75">by RPGエンターテイメント</small></span>
+  </div>
 
   <!-- area navigation (行き先ボタン・上部はこれだけ) + right column -->
   <div id="areaNav">
@@ -332,12 +345,16 @@
   </div>
   <div id="hitobar">
     <button id="htGo">つぶやく</button>
-    <input id="htIn" maxlength="15" placeholder="ひとこと（15文字まで）">
-    <span id="htCount">残り15</span>
+    <input id="htIn" maxlength="20" placeholder="ひとこと（20文字まで）">
+    <span id="htCount">残り20</span>
   </div>
+  <span id="barInfo"><span class="cnt" id="coinBadge" style="cursor:pointer">🪙<b id="cCoin">0</b></span></span>
   <div id="zoomCol">
+    <button class="navbtn" id="paramBarBtn" style="margin-bottom:14px">📊</button>
     <button class="navbtn" id="zoomIn">＋</button>
     <button class="navbtn" id="zoomOut">－</button>
+    <button class="navbtn" id="sndBtn"><span class="ic" id="sndIc">♪</span></button>
+    <button class="navbtn" id="bgmBtn" style="opacity:.5"><span class="ic" id="bgmIc">🎵</span></button>
   </div>
   <div id="notice"></div>
   <button id="showBtn">🎤 本番に参加</button>
@@ -361,19 +378,6 @@
   </div>
 
   <!-- bottom bar（時間つき） -->
-  <div id="bar">
-    <button class="bbtn save" id="meBtn" style="font-size:11px">📍自分</button>
-    <button class="bbtn menu" id="loginBtn" style="font-size:11px">ログイン</button>
-    <button class="bbtn" id="paramBarBtn" style="font-size:11px">📊</button>
-    <button class="bbtn tool" id="sndBtn" title="効果音"><span class="ic" id="sndIc" style="background:#5a3d0a">♪</span></button>
-    <button class="bbtn tool" id="bgmBtn" style="opacity:.5" title="BGM"><span class="ic" id="bgmIc" style="background:#8f9bb3">🎵</span></button>
-    <div id="barInfo">
-      <div id="barCounts">
-        <span class="cnt" id="coinBadge" style="cursor:pointer">🪙<b id="cCoin">0</b></span>
-      </div>
-    </div>
-  </div>
-
   <button id="showPanelTab">▶</button>
   <div id="modal"><div class="card" id="modalCard"></div></div>
   <div id="toast"></div>
@@ -1381,13 +1385,13 @@ document.getElementById('htGo').onclick=()=>{
   const mine=myChars();
   const c=mine[0]||(adminOn?selected:null);
   if(!c){ toast('会員登録が必要です（会員メニュー）'); return; }
-  c.task=[...(inp.value||'').trim()].slice(0,15).join('');
+  c.task=[...(inp.value||'').trim()].slice(0,20).join('');
   if(c.task) c.tweetAt=Date.now();
   refreshTag(c);
   if(selected===c) document.getElementById('pTask').textContent=c.task?('一言: '+c.task):'';
   saveEmployees(); fbTouch(c); sfx('save');
   inp.value=''; refreshHitoBar();
-  const cnt=document.getElementById('htCount'); if(cnt){ cnt.textContent='残り15'; cnt.style.color='#fff'; }
+  const cnt=document.getElementById('htCount'); if(cnt){ cnt.textContent='残り20'; cnt.style.color='#fff'; }
   toast(c.task?'つぶやきました':'一言を消しました');
 };
 document.getElementById('htIn').addEventListener('keydown',e=>{
@@ -1395,7 +1399,7 @@ document.getElementById('htIn').addEventListener('keydown',e=>{
 });
 document.getElementById('htIn').addEventListener('input',()=>{
   const inp=document.getElementById('htIn'), cnt=document.getElementById('htCount');
-  const rem=15-[...(inp.value||'')].length;
+  const rem=20-[...(inp.value||'')].length;
   cnt.textContent='残り'+rem; cnt.style.color=rem<=3?'#ffd23f':'#fff';
 });
 
@@ -3619,7 +3623,6 @@ async function fbAutoSetup(){
       }
     }catch(e){}
   }
-  console.warn('Firebase自動接続に失敗：Realtime Databaseが未作成の可能性');
 }
 const fbDirty=new Set(), fbDel=new Set();
 try{ const v=localStorage.getItem(K_FB); if(v) fbCfg=JSON.parse(v); }catch(e){}
