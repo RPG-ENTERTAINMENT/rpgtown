@@ -119,6 +119,19 @@
     40%{ transform:translateY(-4px) scale(1.2) rotate(20deg); opacity:1; }
     100%{ transform:translateY(-14px) scale(.4) rotate(40deg); opacity:0; }
   }
+  #policeTag{ position:absolute; left:0; top:0; z-index:20; pointer-events:none;
+    transform:translate(-50%,-100%); text-align:center; font-family:'DotGothic16'; white-space:nowrap; }
+  #policeTag .pspeech{ display:inline-block; font-size:10px; font-weight:bold; color:#ff3b3b;
+    background:#fff2f2; border:2px solid #20182e; border-radius:8px; padding:2px 8px; margin-bottom:2px;
+    box-shadow:0 2px 0 #0005; }
+  #policeTag .phint{ font-size:9px; font-weight:bold; color:#5a3d0a; background:#ffd23f;
+    border:2px solid #20182e; border-radius:7px; padding:1px 7px; margin:0 auto 2px; display:inline-block;
+    box-shadow:0 2px 0 #0005; }
+  #policeTag .pname{ font-size:10px; font-weight:bold; color:#fff; background:#20182e;
+    border:1px solid #ff5a5a; border-radius:6px; padding:1px 8px; margin:0 auto 2px; display:inline-block; }
+  #policeTag .php{ width:40px; height:6px; margin:0 auto; background:#5c2020; border:1px solid #20182e;
+    border-radius:4px; overflow:hidden; }
+  #policeTag .php i{ display:block; height:100%; width:100%; background:#e0402f; }
   .tag .hp{ width:34px; height:5px; margin:0 auto 2px; background:#3a1f1f; border:1px solid #20182e;
     border-radius:3px; overflow:hidden; display:none; }
   .tag .hp i{ display:block; height:100%; width:100%; background:#57e06a; }
@@ -327,6 +340,12 @@
 <div id="app">
   <canvas id="map" width="324" height="576"></canvas>
   <div id="tags"></div>
+  <div id="policeTag" style="display:none">
+    <div class="pspeech">ライブやったらだめだよ！！</div>
+    <div class="phint">⚔ タップでみんなで戦う！</div>
+    <div class="pname">👮 警察官</div>
+    <div class="php"><i></i></div>
+  </div>
   <div id="rooms" style="position:absolute;inset:0;pointer-events:none;z-index:12"></div>
   <div id="places"></div>
 
@@ -479,6 +498,10 @@ function canControl(c){ return adminOn || (!!c.pw && myOwned[c.id]===c.pw); }
 
 /* ---------- コイン（課金・この端末の残高）とプレゼント ---------- */
 const K_COIN='fantown_coin';
+const K_SNAP='fantown_snapshot';
+function saveSnap(){ try{ if(!employees||employees.length===0) return;
+  localStorage.setItem(K_SNAP, JSON.stringify({list:employees.map(ser), log, gifts, diaries, events, game, adminPw, liveUrl, t:Date.now()}));
+}catch(e){} }
 const K_RING='fantown_ring';
 let selfRing=(localStorage.getItem(K_RING)==='1');   // 自分キャラの赤枠（初期OFF・メニューでON）
 let coins=100;                                   // 初回は100コインをプレゼント
@@ -1209,8 +1232,7 @@ function update(dt){
       if(Math.abs(dx)>Math.abs(dy)) c.facing=dx<0?'left':'right'; else c.facing=dy<0?'up':'down';
     } else c.moving=false;
   }
-  updatePolice(dt);                                    // 👮 ランダム徘徊
-  updatePoliceBattle(dt);                               // 👮 フィールド上の共有バトル
+  try{ updatePolice(dt); updatePoliceBattle(dt); }catch(e){}   // 👮 敵：エラーが出ても他は止めない
 }
 function moveTo(c,place){ const z=PLACES[place];
   c.tx=z.x1+Math.random()*(z.x2-z.x1); c.ty=z.y1+Math.random()*(z.y2-z.y1); }
@@ -1317,36 +1339,7 @@ function drawPolice(t){
   p(3,9,1,3,skin); p(12,9,1,3,skin); p(6,8,1,1,'#ffd23f'); p(9,8,1,1,'#ffd23f');
   p(5,13,2,2,navyD); p(9,13,2,2,navyD);
   ctx.restore();
-  // 名前「👮 警察官」（名札風・上）
-  const ny=P.y-42;
-  ctx.font='7px "DotGothic16",monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
-  const nm='👮 警察官', nw=Math.max(40, ctx.measureText(nm).width+10);
-  ctx.fillStyle='#20182e'; roundRectPath(P.x-nw/2,ny-7,nw,13,4); ctx.fill();
-  ctx.fillStyle='#ff5a5a'; ctx.fillText(nm, P.x, ny);
-  // 名前ラベル「👮 警察官」（HPバーの上）
-  ctx.font='7px "DotGothic16",monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
-  const pnm='👮 警察官', pnw=ctx.measureText(pnm).width+10;
-  ctx.fillStyle='#20182e'; roundRectPath(P.x-pnw/2,by-13,pnw,10,3); ctx.fill();
-  ctx.fillStyle='#ffffff'; ctx.fillText(pnm, P.x, by-8);
-  // HPバー（全員に見える）
-  const bw=30, bx=P.x-bw/2, by2=by, pct=Math.max(0,P.hp/P.maxhp);
-  ctx.fillStyle='#20182e'; ctx.fillRect(bx-1,by2-1,bw+2,5);
-  ctx.fillStyle='#5c2020'; ctx.fillRect(bx,by2,bw,3);
-  ctx.fillStyle='#e0402f'; ctx.fillRect(bx,by2,bw*pct,3);
-  // 吹き出し（黒縁で見やすく・上）
-  const sy=P.y-58, say=policeSay();
-  ctx.font='7px "DotGothic16",monospace'; ctx.textBaseline='middle'; ctx.textAlign='center';
-  const w=Math.max(56, ctx.measureText(say).width+10);
-  ctx.fillStyle='#20182e'; roundRectPath(P.x-w/2-1,sy-9,w+2,16,4); ctx.fill();
-  ctx.fillStyle='#fff2f2'; roundRectPath(P.x-w/2,sy-8,w,14,4); ctx.fill();
-  ctx.fillStyle='#20182e'; ctx.beginPath(); ctx.moveTo(P.x-3,sy+6); ctx.lineTo(P.x+3,sy+6); ctx.lineTo(P.x,sy+11); ctx.fill();
-  ctx.lineJoin='round'; ctx.lineWidth=3; ctx.strokeStyle='#20182e'; ctx.strokeText(say, P.x, sy-1);
-  ctx.fillStyle='#ff4a4a'; ctx.fillText(say, P.x, sy-1);
-  // 「⚔タップで戦う」ヒント（下ではなく上・黒縁で見やすく）
-  ctx.font='7px "DotGothic16",monospace';
-  ctx.lineJoin='round'; ctx.lineWidth=3; ctx.strokeStyle='#20182e'; ctx.strokeText('⚔ タップでみんなで戦う！', P.x, sy-16);
-  ctx.fillStyle='#ffd23f'; ctx.fillText('⚔ タップでみんなで戦う！', P.x, sy-16);
-  ctx.textAlign='left';
+  // 名前・セリフ・HP・ヒントはHTMLオーバーレイ（updatePoliceTag）でくっきり表示
 }
 function roundRectPath(x,y,w,h,r){ ctx.beginPath();
   ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
@@ -1435,6 +1428,7 @@ function defeatPolice(c){
 /* ---------- render loop ---------- *//* ---------- render loop ---------- */
 let last=performance.now();
 function loop(now){
+ try{
   const dt=Math.min(.05,(now-last)/1000); last=now;
   update(dt);
   if(selected && selected.moving){
@@ -1489,6 +1483,7 @@ function loop(now){
   deco.birds.forEach(b=>drawBird(b,t));                  // 鳥（空・最前面）
   ctx.restore();
   positionTags();
+ }catch(e){ /* 1フレームのエラーで固まらないように */ }
   requestAnimationFrame(loop);
 }
 function positionTags(){
@@ -1518,6 +1513,16 @@ function positionTags(){
         tk.classList.remove('tweeted');
       }
     }
+  }
+  // 👮 警察官オーバーレイ
+  const pt=document.getElementById('policeTag');
+  if(pt){
+    const P=game.police;
+    if(P && P.hp>0){
+      pt.style.display='block';
+      pt.style.transform=`translate(-50%,-100%) translate(${tx(P.x).toFixed(1)}px,${ty(P.y-24).toFixed(1)}px)`;
+      const bar=pt.querySelector('.php i'); if(bar) bar.style.width=Math.max(0,Math.round(P.hp/P.maxhp*100))+'%';
+    } else pt.style.display='none';
   }
   for(const L of worldLabels){ L.el.style.transform=`translate(-50%,-50%) translate(${tx(L.x).toFixed(1)}px,${ty(L.y).toFixed(1)}px)`; }
   for(const L of roomLabels){ L.el.style.transform=`translate(-50%,-50%) translate(${tx(L.x).toFixed(1)}px,${ty(L.y).toFixed(1)}px)`; }
@@ -3814,6 +3819,7 @@ let ghCfg=null, ghSha=null, ghBusy=false, ghOK=false, lastChange=0, lastGhAt=0;
 let pubOK=false, lastSig='';   // トークン無しの自動読み込み（閲覧）用
 /* Firebase Realtime Database（即時リアルタイム同期） */
 let fbCfg=null, fbOK=false, fbES=null, fbPullT=null, fbFlushT=null;
+let fbLoadedOK=false;   // 最初のサーバー読込が成功したか（成功前は書き込み禁止＝全消し防止）
 /* あなたのFirebase（プロジェクト rpgtown）に自動接続。リージョン違いも順に試す */
 const FB_DEFAULTS=[
   'https://rpgtown-default-rtdb.firebaseio.com',
@@ -3905,8 +3911,17 @@ function fbBase(){ return fbCfg.url.replace(/\/+$/,'')+'/rooms/'+encodeURICompon
 function charsMap(){ const m={}; employees.forEach(c=>m[c.id]=ser(c)); return m; }
 async function fbGet(){ const r=await fetch(fbBase()+'.json'); if(!r.ok) throw new Error('FB '+r.status); return await r.json(); }
 let lastFbFullAt=0;
-async function fbPushAll(){ lastFbFullAt=Date.now(); try{ await fetch(fbBase()+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({chars:charsMap(), log:log, todos:todos, gifts:gifts, diaries:diaries, events:events, game:game, adminPw:adminPw, liveUrl:liveUrl})}); fbOK=true; }catch(e){ fbOK=false; } markShared(); }
+async function fbPushAll(){
+  // 🛡 安全装置：まだ読み込めていない/空っぽの時は全上書きしない（データ全消し防止）
+  if(!fbCfg) return;
+  if(!fbLoadedOK){ return; }                 // 最初にサーバーから正常に読めるまで書かない
+  if(!employees || employees.length===0){ return; }   // キャラ0なら上書きしない
+  lastFbFullAt=Date.now();
+  try{ await fetch(fbBase()+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chars:charsMap(), log:log, todos:todos, gifts:gifts, diaries:diaries, events:events, game:game, adminPw:adminPw, liveUrl:liveUrl})}); fbOK=true; }
+  catch(e){ fbOK=false; }
+  markShared();
+}
 function fbApply(data){
   if(data&&data.adminPw){ adminPw=data.adminPw; checkAdminLocal(); }
   if(data&&data.gifts){ gifts=Array.isArray(data.gifts)?data.gifts:Object.values(data.gifts); }
@@ -3921,7 +3936,7 @@ function fbApply(data){
   updateHud();
 }
 async function fbPull(){ if(!fbCfg) return;
-  try{ const data=await fbGet(); fbOK=true;
+  try{ const data=await fbGet(); fbOK=true; fbLoadedOK=true;   // サーバー状態を確認できた＝以後の保存OK
     if(data && data.chars){ fbApply(data); }
     else if(employees.length){ await fbPushAll(); }   // DBが空なら現在の内容で初期化
   }catch(e){ fbOK=false; } markShared();
@@ -4313,7 +4328,7 @@ async function loadAll(){
   }catch(e){}
   // ⓪' Firebase（即時リアルタイム）があれば最優先
   if(!ok && fbCfg){
-    try{ const data=await fbGet();
+    try{ const data=await fbGet(); fbLoadedOK=true;
       if(data && data.adminPw) adminPw=data.adminPw;
       if(data && data.gifts) gifts=Array.isArray(data.gifts)?data.gifts:Object.values(data.gifts);
       if(data && typeof data.liveUrl==='string') liveUrl=data.liveUrl;
@@ -4362,6 +4377,22 @@ async function loadAll(){
       }
     }catch(e){}
   }
+  // ②' Firebaseもどこにも無ければ、端末スナップショット（保険）から復元
+  if(!ok){ try{
+      const snap=JSON.parse(localStorage.getItem(K_SNAP)||'null');
+      if(snap && Array.isArray(snap.list) && snap.list.length){
+        if(snap.adminPw) adminPw=snap.adminPw;
+        if(Array.isArray(snap.gifts)) gifts=snap.gifts;
+        if(typeof snap.liveUrl==='string') liveUrl=snap.liveUrl;
+        if(snap.diaries&&typeof snap.diaries==='object') diaries=snap.diaries;
+        if(Array.isArray(snap.events)) events=snap.events;
+        if(snap.game&&typeof snap.game==='object') game=snap.game;
+        snap.list.forEach(x=>addEmployee({...x,silent:true}));
+        if(Array.isArray(snap.log)) log=mergeLogs(log,snap.log);
+        ok=employees.length>0;
+        if(ok) toast('📦 端末のバックアップから復元しました');
+      }
+    }catch(e){} }
   // ③ どこにも無ければサンプルを表示
   if(!ok){ seed(); if(ghCfg && !fbCfg){ lastChange=Date.now(); ghCommit(); } }
   // Firebaseが空だった場合は、今の内容でDBを初期化
@@ -4424,6 +4455,8 @@ addEventListener('pagehide',()=>{
 });
 /* 🔄 自動保存：変更があれば15秒ごとにFirebaseへフルバックアップ */
 setInterval(()=>{ if(fbCfg && lastChange>lastFbFullAt){ fbPushAll(); } }, 15000);
+setInterval(saveSnap, 12000);                         // 端末に控えを自動保存（保険）
+addEventListener('pagehide', saveSnap);
 </script>
 </body>
 </html>
